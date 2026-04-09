@@ -7,25 +7,26 @@ const teclas = {
   direita: false,
   cima: false,
   baixo: false,
+  tiro: false,
 };
 
 window.addEventListener("keydown", (e) => {
   if (e.code === "ArrowLeft" || e.key === "a") teclas.esquerda = true;
   if (e.code === "ArrowRight" || e.key === "d") teclas.direita = true;
   if (e.code === "ArrowUp" || e.key === "w") teclas.cima = true;
-
   if (e.code === "ArrowDown" || e.key === "s" || e.key === "S")
     teclas.baixo = true;
+
+  if (e.code === "Space") teclas.tiro = true;
 });
 
 window.addEventListener("keyup", (e) => {
   if (e.code === "ArrowLeft" || e.key === "a") teclas.esquerda = false;
   if (e.code === "ArrowRight" || e.key === "d") teclas.direita = false;
-  if (e.code === "ArrowUp" || e.key === "w" || e.code === "Space")
-    teclas.cima = false;
-
+  if (e.code === "ArrowUp" || e.key === "w") teclas.cima = false;
   if (e.code === "ArrowDown" || e.key === "s" || e.key === "S")
     teclas.baixo = false;
+  if (e.code === "Space") teclas.tiro = false;
 });
 
 // O Jogador (Quadrado Azul)
@@ -42,7 +43,11 @@ const jogador = {
   cor: "#2980b9",
   hp: 100,
   maxHp: 100,
+  direcao: 1,
+  cooldownTiro: 0,
 };
+
+const tiros = [];
 
 // O Chefão (Quadrado Vermelho no meio)
 const chefao = {
@@ -72,11 +77,64 @@ const plataformas = [
 
 const gravidade = 0.6;
 
+function atirar() {
+  let velX = 0;
+  let velY = 0;
+  let larguraTiro = 15;
+  let alturaTiro = 5;
+  let startX = jogador.x + jogador.largura / 2;
+  let startY = jogador.y + 10;
+
+  if (teclas.cima) {
+    velX = 0;
+    velY = -12;
+    larguraTiro = 5;
+    alturaTiro = 15;
+    startX = jogador.x + 12;
+    startY = jogador.y - 10;
+  } else if (teclas.baixo) {
+    velX = 0;
+    velY = 12;
+    larguraTiro = 5;
+    alturaTiro = 15;
+    startX = jogador.x + 12;
+    startY = jogador.y + jogador.altura;
+  } else {
+    velX = 12 * jogador.direcao;
+    velY = 0;
+  }
+
+  tiros.push({
+    x: startX,
+    y: startY,
+    largura: larguraTiro,
+    altura: alturaTiro,
+    velocidadeX: velX,
+    velocidadeY: velY,
+    cor: "#f1c40f",
+  });
+}
+
 function atualizar() {
+  if (jogador.cooldownTiro > 0) {
+    jogador.cooldownTiro--;
+  }
+
+  if (teclas.tiro && jogador.cooldownTiro <= 0) {
+    atirar();
+    jogador.cooldownTiro = 15;
+  }
+
   // Movimentação Horizontal
-  if (teclas.esquerda) jogador.velocidadeX = -jogador.velocidadeMaxima;
-  else if (teclas.direita) jogador.velocidadeX = jogador.velocidadeMaxima;
-  else jogador.velocidadeX = 0;
+  if (teclas.esquerda) {
+    jogador.velocidadeX = -jogador.velocidadeMaxima;
+    jogador.direcao = -1;
+  } else if (teclas.direita) {
+    jogador.velocidadeX = jogador.velocidadeMaxima;
+    jogador.direcao = 1;
+  } else {
+    jogador.velocidadeX = 0;
+  }
 
   jogador.x += jogador.velocidadeX;
 
@@ -88,6 +146,11 @@ function atualizar() {
 
   // Aplicar Gravidade
   jogador.velocidadeY += gravidade;
+
+  if (jogador.velocidadeY > 8) {
+    jogador.velocidadeY = 8;
+  }
+
   jogador.y += jogador.velocidadeY;
 
   // Colisão com as Plataformas
@@ -120,6 +183,33 @@ function atualizar() {
   if (jogador.x < 0) jogador.x = 0;
   if (jogador.x + jogador.largura > canvas.width)
     jogador.x = canvas.width - jogador.largura;
+
+  for (let i = tiros.length - 1; i >= 0; i--) {
+    let tiro = tiros[i];
+    tiro.x += tiro.velocidadeX;
+    tiro.y += tiro.velocidadeY;
+
+    if (
+      chefao.hp > 0 &&
+      tiro.x < chefao.x + chefao.largura &&
+      tiro.x + tiro.largura > chefao.x &&
+      tiro.y < chefao.y + chefao.altura &&
+      tiro.y + tiro.altura > chefao.y
+    ) {
+      chefao.hp -= 10;
+      tiros.splice(i, 1);
+      continue;
+    }
+
+    if (
+      tiro.x > canvas.width ||
+      tiro.x < 0 ||
+      tiro.y > canvas.height ||
+      tiro.y < 0
+    ) {
+      tiros.splice(i, 1);
+    }
+  }
 }
 
 function desenhar() {
@@ -139,6 +229,11 @@ function desenhar() {
   // Desenha o Jogador
   ctx.fillStyle = jogador.cor;
   ctx.fillRect(jogador.x, jogador.y, jogador.largura, jogador.altura);
+
+  for (let tiro of tiros) {
+    ctx.fillStyle = tiro.cor;
+    ctx.fillRect(tiro.x, tiro.y, tiro.largura, tiro.altura);
+  }
 
   ctx.font = "bold 16px sans-serif";
   ctx.textAlign = "center";

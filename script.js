@@ -18,6 +18,9 @@ window.addEventListener("keydown", (e) => {
     teclas.baixo = true;
 
   if (e.code === "Space") teclas.tiro = true;
+
+  if (e.key === "1") jogador.armaAtual = 1;
+  if (e.key === "2") jogador.armaAtual = 2;
 });
 
 window.addEventListener("keyup", (e) => {
@@ -45,16 +48,22 @@ const jogador = {
   maxHp: 100,
   direcao: 1,
   cooldownTiro: 0,
+  armaAtual: 1,
+  tempoEspada: 0,
+  hitboxEspada: null,
+  direcaoAtaque: null,
+  ladoAtaque: 1,
+  tempoInvulneravel: 0,
 };
 
 const tiros = [];
 
 // O Chefão (Quadrado Vermelho no meio)
 const chefao = {
-  x: 350,
-  y: 300,
-  largura: 100,
-  altura: 150,
+  x: 340,
+  y: 270,
+  largura: 120,
+  altura: 180,
   hp: 200,
   maxHp: 200,
   cor: "#c0392b",
@@ -115,15 +124,74 @@ function atirar() {
   });
 }
 
-function atualizar() {
-  if (jogador.cooldownTiro > 0) {
-    jogador.cooldownTiro--;
+function baterComEspada() {
+  jogador.tempoEspada = 10;
+  let alcance = 40;
+  let espessura = 10;
+
+  let ataqueX =
+    jogador.direcao === 1 ? jogador.x + jogador.largura : jogador.x - alcance;
+  let ataqueY = jogador.y + 10;
+  let ataqueLargura = alcance;
+  let ataqueAltura = espessura;
+
+  if (teclas.cima) {
+    ataqueX = jogador.x + 10;
+    ataqueY = jogador.y - alcance;
+    ataqueLargura = espessura;
+    ataqueAltura = alcance;
+  } else if (teclas.baixo) {
+    ataqueX = jogador.x + 10;
+    ataqueY = jogador.y + jogador.altura;
+    ataqueLargura = espessura;
+    ataqueAltura = alcance;
   }
 
-  if (teclas.tiro && jogador.cooldownTiro <= 0) {
-    atirar();
-    jogador.cooldownTiro = 15;
+  jogador.hitboxEspada = {
+    x: ataqueX,
+    y: ataqueY,
+    largura: ataqueLargura,
+    altura: ataqueAltura,
+  };
+
+  if (
+    chefao.hp > 0 &&
+    ataqueX < chefao.x + chefao.largura &&
+    ataqueX + ataqueLargura > chefao.x &&
+    ataqueY < chefao.y + chefao.altura &&
+    ataqueY + ataqueAltura > chefao.y
+  ) {
+    chefao.hp -= 20;
   }
+}
+
+function atualizar() {
+  if (jogador.cooldownTiro > 0) jogador.cooldownTiro--;
+  if (jogador.tempoEspada > 0) jogador.tempoEspada--;
+  if (jogador.tempoInvulneravel > 0) jogador.tempoInvulneravel--;
+
+  if (chefao.hp > 0 && jogador.hp > 0 && jogador.tempoInvulneravel <= 0)
+    if (teclas.tiro && jogador.cooldownTiro <= 0 && jogador.armaAtual === 1) {
+      atirar();
+      jogador.cooldownTiro = 15;
+    } else if (
+      teclas.tiro &&
+      jogador.tempoEspada <= 0 &&
+      jogador.armaAtual === 2
+    ) {
+      baterComEspada();
+      jogador.tempoEspada = 25;
+
+      if (teclas.cima) {
+        jogador.direcaoAtaque = "cima";
+      } else if (teclas.baixo) {
+        jogador.direcaoAtaque = "baixo";
+      } else {
+        jogador.direcaoAtaque = "lado";
+      }
+
+      jogador.ladoAtaque = jogador.direcao;
+    }
 
   // Movimentação Horizontal
   if (teclas.esquerda) {
@@ -147,6 +215,7 @@ function atualizar() {
   // Aplicar Gravidade
   jogador.velocidadeY += gravidade;
 
+  //limite da velocidade para cair
   if (jogador.velocidadeY > 8) {
     jogador.velocidadeY = 8;
   }
@@ -210,6 +279,36 @@ function atualizar() {
       tiros.splice(i, 1);
     }
   }
+
+  if (jogador.tempoEspada > 0) {
+    let alcance = 40;
+    let espessura = 10;
+    let ataqueX =
+      jogador.direcao === 1 ? jogador.x + jogador.largura : jogador.x - alcance;
+    let ataqueY = jogador.y + 10;
+    let ataqueLargura = alcance;
+    let ataqueAltura = espessura;
+
+    if (jogador.direcaoAtaque === "cima") {
+      ataqueX = jogador.x + 10;
+      ataqueY = jogador.y - alcance;
+      ataqueLargura = espessura;
+      ataqueAltura = alcance;
+    } else if (jogador.direcaoAtaque === "baixo") {
+      ataqueX = jogador.x + 10;
+      ataqueY = jogador.y + jogador.altura;
+      ataqueLargura = espessura;
+      ataqueAltura = alcance;
+    }
+    jogador.hitboxEspada = {
+      x: ataqueX,
+      y: ataqueY,
+      largura: ataqueLargura,
+      altura: ataqueAltura,
+    };
+  } else {
+    jogador.hitboxEspada = null;
+  }
 }
 
 function desenhar() {
@@ -229,6 +328,16 @@ function desenhar() {
   // Desenha o Jogador
   ctx.fillStyle = jogador.cor;
   ctx.fillRect(jogador.x, jogador.y, jogador.largura, jogador.altura);
+
+  if (jogador.tempoEspada > 0 && jogador.hitboxEspada) {
+    ctx.fillStyle = "silver";
+    ctx.fillRect(
+      jogador.hitboxEspada.x,
+      jogador.hitboxEspada.y,
+      jogador.hitboxEspada.largura,
+      jogador.hitboxEspada.altura
+    );
+  }
 
   for (let tiro of tiros) {
     ctx.fillStyle = tiro.cor;
@@ -252,7 +361,7 @@ function desenhar() {
     posXJogador,
     posYJogador,
     larguraBarraJogador,
-    alturaBarraJogador,
+    alturaBarraJogador
   );
 
   // Vida verde do jogador
@@ -261,7 +370,7 @@ function desenhar() {
     posXJogador,
     posYJogador,
     larguraBarraJogador * porcentagemJogador,
-    alturaBarraJogador,
+    alturaBarraJogador
   );
 
   // Texto HP do Jogador
@@ -269,7 +378,7 @@ function desenhar() {
   ctx.fillText(
     `${jogador.hp} / ${jogador.maxHp}`,
     posXJogador + larguraBarraJogador / 2,
-    posYJogador + alturaBarraJogador / 2,
+    posYJogador + alturaBarraJogador / 2
   );
 
   // 2. BARRA DE VIDA DO CHEFÃO (No meio do chão)
@@ -289,7 +398,7 @@ function desenhar() {
     posXChefao,
     posYChefao,
     larguraBarraChefao * porcentagemChefao,
-    alturaBarraChefao,
+    alturaBarraChefao
   );
 
   // Texto HP do Chefão
@@ -297,7 +406,7 @@ function desenhar() {
   ctx.fillText(
     `${chefao.hp} / ${chefao.maxHp}`,
     posXChefao + larguraBarraChefao / 2,
-    posYChefao + alturaBarraChefao / 2,
+    posYChefao + alturaBarraChefao / 2
   );
 
   //   let porcentagemChefao = Math.max(0, chefao.hp / chefao.maxHp);
